@@ -39,6 +39,7 @@ cs_add_executable(example_generic_cartesian_move_ac4 src/example_generic_cart_mo
 cs_add_executable(example_block_grabber src/example_block_grabber.cpp)
 
 cs_add_executable(cart_move_ac_irb5400 src/cart_move_ac_irb5400.cpp)
+cs_add_executable(subscriber_check src/subscriber_check.cpp)
 
 
 #the following is required, if desire to link a node in this package with a library created in this same package
@@ -50,6 +51,7 @@ target_link_libraries(example_generic_cartesian_move_ac4 cartesian_motion_comman
 target_link_libraries(example_block_grabber cartesian_motion_commander)
 
 target_link_libraries(cart_move_ac_irb5400 cartesian_motion_commander)
+target_link_libraries(subscriber_check cartesian_motion_commander)
 
 cs_install()
 cs_export()

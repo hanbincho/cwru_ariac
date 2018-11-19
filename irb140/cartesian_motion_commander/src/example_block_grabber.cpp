@@ -19,9 +19,24 @@
 #include <Eigen/Eigen>
 #include <Eigen/Dense>
 #include <Eigen/Geometry>
+#include <geometry_msgs/PoseStamped.h>
 #include <xform_utils/xform_utils.h>
 #include <std_srvs/SetBool.h>
 using namespace std;
+
+geometry_msgs::PoseStamped block_coordinates;
+bool collected;
+bool flag;
+
+// callback function for obtaining block coordinates relative to robot base
+void callBack(const geometry_msgs::PoseStamped& message_holder) {
+    if (flag) {
+	ROS_INFO("In callback function");
+	block_coordinates = message_holder;
+	collected = true;
+	flag = false;
+    }
+} 
 
 int main(int argc, char** argv) {
     ros::init(argc, argv, "example_arm_cart_move_ac"); // name this node 
@@ -29,6 +44,16 @@ int main(int argc, char** argv) {
     CartMotionCommander cart_motion_commander;
     XformUtils xformUtils;
     ros::ServiceClient client = nh.serviceClient<std_srvs::SetBool>("/sticky_finger/link6");
+    ros::Subscriber block_pose_subscriber = nh.subscribe("block_pose", 1, callBack); // subscribe to node that is publishing block coordinate data
+
+    flag = true;
+    collected = false;
+    while (!collected) {
+    	ROS_INFO("callback hasn't been called yet");
+	ros::spinOnce();
+	ros::Duration(0.5).sleep();
+    }
+    
     std_srvs::SetBool srv;
     srv.request.data = true;
 
@@ -42,6 +67,10 @@ int main(int argc, char** argv) {
 
     bool traj_is_valid = false;
     int rtn_code;
+
+    // Desired final location- where block should end up 
+    double x_final = 0.6;
+    double y_final = 0.4;
 
     nsteps = 10;
     arrival_time = 2.0;
@@ -96,7 +125,8 @@ int main(int argc, char** argv) {
         
         //move to approach pose:
         ROS_INFO("moving to approach pose");
-        tool_pose.pose.position.y=0.0; 
+	tool_pose.pose.position.x = block_coordinates.pose.position.x;
+        tool_pose.pose.position.y= block_coordinates.pose.position.y; 
         tool_pose.pose.position.z = 0.05; //0.01;          
         ROS_INFO("requesting plan to descend:");
         xformUtils.printPose(tool_pose);
@@ -113,7 +143,7 @@ int main(int argc, char** argv) {
         ROS_INFO("moving to grasp pose");
         //lower tool to approach part to grasp
         //tool_pose.pose.position.y=0; 
-        tool_pose.pose.position.z = 0.0343; //block is 0.035 high      
+        tool_pose.pose.position.z = 0.0343; //block is 0.035 high, SHOULD SET EQUAL TO Z AXIS FROM BLOCK_CORD?  
 
         ROS_INFO("requesting plan to descend:");
         xformUtils.printPose(tool_pose);
@@ -135,10 +165,23 @@ int main(int argc, char** argv) {
             ros::Duration(0.5).sleep();
         }
 
-
-
         ROS_INFO("requesting plan to depart with grasped object:");
         tool_pose.pose.position.z = 0.3;         
+
+        xformUtils.printPose(tool_pose);
+        rtn_val = cart_motion_commander.plan_cartesian_traj_qprev_to_des_tool_pose(nsteps, arrival_time, tool_pose);
+        if (rtn_val == arm_motion_action::arm_interfaceResult::SUCCESS) {
+            ROS_INFO("successful plan; command execution of trajectory");
+            rtn_val = cart_motion_commander.execute_planned_traj();
+            ros::Duration(arrival_time + 0.2).sleep();
+        } else {
+            ROS_WARN("unsuccessful plan; rtn_code = %d", rtn_val);
+        }
+	
+	// GO TO DESIRED LOCATION
+	ROS_INFO("Going to final location");
+        tool_pose.pose.position.x = x_final;  
+	 tool_pose.pose.position.y = y_final;        
 
         xformUtils.printPose(tool_pose);
         rtn_val = cart_motion_commander.plan_cartesian_traj_qprev_to_des_tool_pose(nsteps, arrival_time, tool_pose);
@@ -158,8 +201,13 @@ int main(int argc, char** argv) {
             ros::spinOnce();
             ros::Duration(0.5).sleep();
         }
+
+	// Perform check to see block is aligned with the robot base- allow some leeway for imprecision
+	if(0.9 < block_coordinate.pose.orientation.w < 1.1) {
+	    ROS_INFO("block is correctly oriented");
+	}
+    return 0; // get out of while loop once object is at final location
     }
 
-    return 0;
 }
 

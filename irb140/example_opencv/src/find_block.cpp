@@ -11,9 +11,11 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <geometry_msgs/PoseStamped.h>
 #include <xform_utils/xform_utils.h>
+#include <Eigen/Dense>
 
 static const std::string OPENCV_WINDOW = "Open-CV display window";
 using namespace std;
+using Eigen::MatrixXd;
 
 int g_redratio; //threshold to decide if a pixel qualifies as dominantly "red"
 
@@ -72,7 +74,16 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg){
         int isum = 0; //accumulate the column values of red pixels
         int jsum = 0; //accumulate the row values of red pixels
         int redval, blueval, greenval, testval;
+	double scaling_factor = 0.002953175742;	// calculated by hand from Gazebo and openCV
+
         cv::Vec3b rgbpix; // OpenCV representation of an RGB pixel
+	MatrixXd Tm(4, 4); // 4x4 transformation matrix
+	MatrixXd center(2, 1); // 2x1 centroid matrix but in distances
+	MatrixXd x_pr(2, 1); // x-axis rotational matrix
+	MatrixXd y_pr(2, 1); // y-axis rotational matrix
+	MatrixXd block_camera(4, 1); // block position coordinates relative to the camera
+	MatrixXd block_robot(4, 1); // block position coordinates relative to the robot base
+
         //comb through all pixels (j,i)= (row,col)
         for (int i = 0; i < cv_ptr->image.cols; i++) {
             for (int j = 0; j < cv_ptr->image.rows; j++) {
@@ -98,6 +109,41 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg){
                 }
             }
         }
+	
+	// Define center projection matrix- may want to redefine by finding the numbers myself
+	center(0, 0) = 0.545;
+	center(1, 0) = 0.322;
+
+	// Define x-axis rotational matrix- calculated by hand from looking at Gazebo and openCV
+	x_pr(0, 0) = 0.97708897; 
+	x_pr(1, 0) = -0.212831261;
+
+	// Define y-axis rotational matrix- based off the matrix: [cos thea, -sin theta; sin theta, cos theta] where the first column is the x-axis rotational values and the second is the y-axis rotational values
+	y_pr(0, 0) = -x_pr(1, 0);
+	y_pr(1, 0) = x_pr(0, 0);
+	
+	// Define transformation matrix based on Gazebo and openCV values
+	// x-axis rotational matrix
+	Tm(0, 0) = x_pr(0, 0);
+	Tm(1, 0) = x_pr(1, 0);
+	Tm(2, 0) = 0;
+	Tm(3, 0) = 0;
+	// y-axis rotational matrix
+	Tm(0, 1) = y_pr(0, 0);
+	Tm(1, 1) = y_pr(1, 0);
+	Tm(2, 1) = 0;
+	Tm(3, 1) = 0;
+	// z-axis rotational matrix
+	Tm(0, 2) = 0;
+	Tm(1, 2) = 0;
+	Tm(2, 2) = 1;
+	Tm(3, 2) = 0;
+	// translational matrix
+	Tm(0, 3) = center(0, 0);
+	Tm(1, 3) = center(1, 0);
+	Tm(2, 3) = 0.5*BLOCK_HEIGHT;
+	Tm(3, 3) = 1;
+	
         //cout << "npix: " << npix << endl;
         //paint in a blue square at the centroid:
         int half_box = 5; // choose size of box to paint
@@ -123,6 +169,16 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg){
             }
 
         }
+
+	// 4x1 block centroid coordinates to be multiplied to transformation matrix; computation: (i-ic)*s
+	block_camera(0, 0) = (x_centroid-320)*scaling_factor;
+	block_camera(1, 0) = (y_centroid-240)*scaling_factor;
+	block_camera(2, 0) = 0.5*BLOCK_HEIGHT;
+	block_camera(3, 0) = 1;
+
+	// Get block coordinates relative to the robot base
+	block_robot = Tm*block_camera;
+	
         // Update GUI Window; this will display processed images on the open-cv viewer.
         cv::imshow(OPENCV_WINDOW, cv_ptr->image);
         cv::waitKey(3); //need waitKey call to update OpenCV image window
@@ -132,15 +188,28 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg){
         //rosrun image_view image_view image:=/image_converter/output_video
         image_pub_.publish(cv_ptr->toImageMsg());
         
-        block_pose_.pose.position.x = i_centroid; //not true, but legal
-        block_pose_.pose.position.y = j_centroid; //not true, but legal
-        double theta=0;
+	// Set calculated distance values as the block position
+        block_pose_.pose.position.x = block_robot(0, 0); 
+        block_pose_.pose.position.y = block_robot(1, 0); 
+        double theta=atan(x_pr(1, 0)/x_pr(0, 0)); 
+	//ROS_INFO("pose_x: %f; pose_y: %f", block_pose_.pose.position.x, block_pose_.pose.position.y); // check to see if values are being published to block_pose node
         
         // need camera info to fill in x,y,and orientation x,y,z,w
         //geometry_msgs::Quaternion quat_est
         //quat_est = xformUtils.convertPlanarPsi2Quaternion(yaw_est);
         block_pose_.pose.orientation = xformUtils.convertPlanarPsi2Quaternion(theta); //not true, but legal
         block_pose_publisher_.publish(block_pose_);
+
+	// Find the yaw, pitch, and roll of the block
+	double yaw, pitch, roll;
+	double a = block_pose_.pose.orientation.x;
+	double b = block_pose_.pose.orientation.y;
+	double c = block_pose_.pose.orientation.z;
+	double d = block_pose_.pose.orientation.w;
+	yaw = atan(2*(a*b +c*d)/(a^2 - b^2 - c^2 + d^2));
+	pitch = -asin(2*(b*d - a*c));
+	roll = atan((2*(a*d + b*c)/(a^2 + b^2 + c^2 - d^2));
+	ROS_INFO("yaw: %f, pitch: %f, roll: %f", yaw, pitch, roll);
     }
 
 int main(int argc, char** argv) {
