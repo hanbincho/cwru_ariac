@@ -111,16 +111,16 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg){
         }
 	
 	// Define center projection matrix- may want to redefine by finding the numbers myself
-	center(0, 0) = 0.545;
+	center(0, 0) = 0.515; //0.535
 	center(1, 0) = 0.322;
 
 	// Define x-axis rotational matrix- calculated by hand from looking at Gazebo and openCV
 	x_pr(0, 0) = 0.97708897; 
-	x_pr(1, 0) = -0.212831261;
+	x_pr(1, 0) = -0.01212831261;
 
 	// Define y-axis rotational matrix- based off the matrix: [cos thea, -sin theta; sin theta, cos theta] where the first column is the x-axis rotational values and the second is the y-axis rotational values
 	y_pr(0, 0) = -x_pr(1, 0);
-	y_pr(1, 0) = x_pr(0, 0);
+	y_pr(1, 0) = -x_pr(0, 0);
 	
 	// Define transformation matrix based on Gazebo and openCV values
 	// x-axis rotational matrix
@@ -189,7 +189,7 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg){
         image_pub_.publish(cv_ptr->toImageMsg());
         
 	// Set calculated distance values as the block position
-        block_pose_.pose.position.x = block_robot(0, 0); 
+        block_pose_.pose.position.x = block_robot(0, 0)-0.025; 
         block_pose_.pose.position.y = block_robot(1, 0); 
         double theta=atan(x_pr(1, 0)/x_pr(0, 0)); 
 	//ROS_INFO("pose_x: %f; pose_y: %f", block_pose_.pose.position.x, block_pose_.pose.position.y); // check to see if values are being published to block_pose node
@@ -206,10 +206,12 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg){
 	double b = block_pose_.pose.orientation.y;
 	double c = block_pose_.pose.orientation.z;
 	double d = block_pose_.pose.orientation.w;
-	yaw = atan(2*(a*b +c*d)/(a^2 - b^2 - c^2 + d^2));
+
+	yaw = atan(2*(a*b + c*d)/(a*a - b*b - c*c + d*d));
 	pitch = -asin(2*(b*d - a*c));
-	roll = atan((2*(a*d + b*c)/(a^2 + b^2 + c^2 - d^2));
+	roll = atan((2*(a*d + b*c))/(a*a + b*b + c*c - d*d));
 	ROS_INFO("yaw: %f, pitch: %f, roll: %f", yaw, pitch, roll);
+
     }
 
 int main(int argc, char** argv) {

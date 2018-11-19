@@ -178,10 +178,11 @@ int main(int argc, char** argv) {
             ROS_WARN("unsuccessful plan; rtn_code = %d", rtn_val);
         }
 	
-	// GO TO DESIRED LOCATION
+	// Drop block at desired location
 	ROS_INFO("Going to final location");
         tool_pose.pose.position.x = x_final;  
-	 tool_pose.pose.position.y = y_final;        
+	tool_pose.pose.position.y = y_final;  
+	tool_pose.pose.position.z = 0.1;      
 
         xformUtils.printPose(tool_pose);
         rtn_val = cart_motion_commander.plan_cartesian_traj_qprev_to_des_tool_pose(nsteps, arrival_time, tool_pose);
@@ -203,7 +204,7 @@ int main(int argc, char** argv) {
         }
 
 	// Perform check to see block is aligned with the robot base- allow some leeway for imprecision
-	if(0.9 < block_coordinate.pose.orientation.w < 1.1) {
+	if(0.9 < block_coordinates.pose.orientation.w && block_coordinates.pose.orientation.w < 1.1) {
 	    ROS_INFO("block is correctly oriented");
 	}
     return 0; // get out of while loop once object is at final location
