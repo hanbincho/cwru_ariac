@@ -99,6 +99,8 @@ int main(int argc, char** argv) {
     }
     
     
+    // observe box_camera_1 to get the three parts within the shipping box
+    // need to compare coordinates from first camera to the obtained coordinates from quality inspector
 
     if (boxInspector.get_bad_part_Q1(current_part)) {
         ROS_INFO("found bad part: ");
@@ -106,11 +108,44 @@ int main(int argc, char** argv) {
         
         cout<<"enter 1 to attempt to remove bad part: "; //poor-man's breakpoint
         cin>>ans;        
-        //XXX YOU should attempt to remove the defective part here...
-        // see example, line 139, robotBehaviorInterface.pick_part_from_box();
 
     //use the robot action server to acquire and dispose of the specified part in the box:
     }    
+
+    osrf_gear::Model part_inspect;
+    inventory_msgs::Part bad_part;
+    bool flag_1 = false;
+    bool flag_2 = false;
+    for (int j = 0; j < nparts; j++) {
+	part_inspect = orphan_models_wrt_world[j]; // go through all the parts in the box to see if coordinates match
+
+	// check x-coordinates
+	if (abs(part_inspect.pose.position.x - current_part.pose.pose.position.x) < 0.03) {
+	    flag_1 = true;
+	}
+
+	// check y-coordinates
+	if (abs(part_inspect.pose.position.y - current_part.pose.pose.position.y) < 0.03) {
+	    flag_2 = true;
+	}
+	if (flag_1 && flag_2) {
+	    // at this point, we have found the bad part that needs to be removed
+	    model_to_part(part_inspect, bad_part, inventory_msgs::Part::QUALITY_SENSOR_1); // convert the bad part to the Part type
+	    status = robotBehaviorInterface.pick_part_from_box(bad_part); // remove the identified bad part from the box
+	    model_to_part(part_inspect, current_part, inventory_msgs::Part::QUALITY_SENSOR_1); // update the current part details with those of the identified model
+	    // reset flags
+	    flag_1 = false;
+	    flag_2 = false;
+	    break;
+	}
+    }
+
+    // check to see if the name of the current_part has been updated from "model"
+    //ROS_INFO("Here's info about the current_part");
+    //ROS_INFO_STREAM(current_part<<endl);
+
+    //use the robot action server to acquire and dispose of the specified part in the box:- ORIGINAL METHOD
+    //status = robotBehaviorInterface.pick_part_from_box(current_part);
 
     //after removing the bad part, re-inspect the box:
     boxInspector.update_inspection(desired_models_wrt_world,
@@ -124,21 +159,33 @@ int main(int argc, char** argv) {
     for (int i=0;i<nparts;i++) {
        ROS_INFO_STREAM("orphaned  parts: "<<orphan_models_wrt_world[i]<<endl);
     }
+    // check to see the updated contents (if bad part was correctly removed)
+    ROS_INFO("Above is the updated contents in the box after bad part removal");
+    
+    // move robot to grasp and discard each remaining part in the box
+    inventory_msgs::Part part_to_be_removed;
+    for (int j = 0; j < nparts; j++) {
+	model_to_part(orphan_models_wrt_world[j], part_to_be_removed, inventory_msgs::Part::QUALITY_SENSOR_1);
+	status = robotBehaviorInterface.pick_part_from_box(part_to_be_removed);
+    }
 
-
-    // move robot to grasp and discard each part
-
-    //start w/ first part
+    //after all parts, re-inspect the box:
+    boxInspector.update_inspection(desired_models_wrt_world,
+        satisfied_models_wrt_world,misplaced_models_actual_coords_wrt_world,
+        misplaced_models_desired_coords_wrt_world,missing_models_wrt_world,
+        orphan_models_wrt_world,part_indices_missing,part_indices_misplaced,
+        part_indices_precisely_placed);
+    ROS_INFO("orphaned parts in box: ");
+    nparts = orphan_models_wrt_world.size();
+    ROS_INFO("num parts seen in box = %d",nparts);
+    for (int i=0;i<nparts;i++) {
+       ROS_INFO_STREAM("orphaned  parts: "<<orphan_models_wrt_world[i]<<endl);
+    }
+    ROS_INFO("Above is the updated contents in the box after complete removal");
 
     //box inspector sees "model", defined in osrf_gear; convert this to our datatype "Part"
     //void model_to_part(osrf_gear::Model model, inventory_msgs::Part &part, unsigned short int location) 
-    model_to_part(orphan_models_wrt_world[0], current_part, inventory_msgs::Part::QUALITY_SENSOR_1);
-
-    //use the robot action server to acquire and dispose of the specified part in the box:
-    status = robotBehaviorInterface.pick_part_from_box(current_part);
-
-    //SHOULD REPEAT FOR ALL THE PARTS IN THE BOX
-    //ALSO, WATCH OUT FOR NO PARTS IN THE BOX--ABOVE WILL CRASH
+    //model_to_part(orphan_models_wrt_world[0], current_part, inventory_msgs::Part::QUALITY_SENSOR_1);
 
             return 0;
     //here's an oddity: this node runs to completion.  But sometimes, Linux complains bitterly about

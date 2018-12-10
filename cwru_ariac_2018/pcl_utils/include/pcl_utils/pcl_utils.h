@@ -13,10 +13,10 @@
 #include <iostream>
 #include <vector>
 
-#include <eigen3/Eigen/Eigen> //for the Eigen library
-#include <eigen3/Eigen/Dense>
-#include <eigen3/Eigen/Geometry>
-#include <eigen3/Eigen/Eigenvalues>
+#include <Eigen/Eigen> //for the Eigen library
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
+#include <Eigen/Eigenvalues>
 
 #include <sensor_msgs/PointCloud2.h> //useful ROS message types
 #include <geometry_msgs/PointStamped.h>

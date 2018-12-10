@@ -73,7 +73,16 @@ int main(int argc, char** argv) {
             ROS_INFO("waiting for conveyor to advance a box to Q1...");
         }
     }
-
+    //advance the box further!
+    conveyorInterface.move_box_Q1_to_Q2();  //member function of conveyor interface to move a box to inspection station 1
+    while (conveyorInterface.get_box_status() != conveyor_as::conveyorResult::BOX_SEEN_AT_Q2) {
+        ros::spinOnce();
+        ros::Duration(0.1).sleep();
+        nprint++;
+        if (nprint % 10 == 0) {
+            ROS_INFO("waiting for conveyor to advance a box to Q2...");
+        }
+    }
     //update box pose,  if possible              
     if (boxInspector.get_box_pose_wrt_world(box_pose_wrt_world)) {
         ROS_INFO_STREAM("box seen at: " << box_pose_wrt_world << endl);
