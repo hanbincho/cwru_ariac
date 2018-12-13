@@ -52,6 +52,7 @@ cs_add_executable(unload_box src/unload_box.cpp)
 cs_add_executable(unload_box_v2 src/unload_box_v2.cpp)
 cs_add_executable(unload_box_v3 src/unload_box_v3.cpp)
 cs_add_executable(unload_box_v4 src/unload_box_v4.cpp)
+cs_add_executable(unload_box_v5 src/unload_box_v5.cpp)
 cs_add_executable(demo_order_filler src/demo_order_filler.cpp)
 #the following is required, if desire to link a node in this package with a library created in this same package
 # edit the arguments to reference the named node and named library within this package

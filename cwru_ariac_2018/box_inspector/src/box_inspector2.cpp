@@ -349,7 +349,9 @@ bool BoxInspector2::get_new_snapshot_from_box_cam(int cam_num) {
             break;
         case CAM2:
             while ((!got_new_snapshot2_) && (timer < BOX_INSPECTOR_TIMEOUT)) {
-                ROS_WARN("FIX ME!!!");
+                ros::spinOnce();
+                ros::Duration(dt).sleep();
+                timer += dt;
             }
             if (timer >= BOX_INSPECTOR_TIMEOUT) {
                 ROS_WARN("could not update box2 inspection image!");
@@ -471,7 +473,8 @@ bool BoxInspector2::get_filtered_snapshots_from_box_cam2(osrf_gear::LogicalCamer
             box_inspector_image=box_inspector_image_;
             break;
         case CAM2:
-            ROS_WARN("really should do something here...FIX ME!");
+	    box_inspector_image=box_inspector_image2_;            
+	    //ROS_WARN("really should do something here...FIX ME!");
             break;     
         default:
             ROS_WARN("box-inspector: cam_num = %d not recognized",cam_num);
@@ -563,27 +566,26 @@ bool BoxInspector2::update_inspection(
     osrf_gear::Model test_model, desired_model;
     geometry_msgs::PoseStamped model_pose_from_image_wrt_world;
     
-    //switch(cam_num) {
-    //    case 1: //camera 1:
+    switch(cam_num) {
+        case 1: //camera 1:
                 //if blackout, DO NOT clear the model vectors!
             if (!get_filtered_snapshots_from_box_cam(filtered_box_camera_image,cam_num)) {
                 return false;
             }
-    //        ROS_INFO("inspection with box_cam1");
-    //    break;
-    //    case 2: //camera 2:
-    //        if (!get_filtered_snapshots_from_box_cam2(filtered_box_camera_image,cam_num)) {
-    //            return false;
-    //        }            
-    //        ROS_INFO("inspection with box_cam2");
+            ROS_INFO("inspection with box_cam1");
+        break;
+        case 2: //camera 2:
+            if (!get_filtered_snapshots_from_box_cam(filtered_box_camera_image,cam_num)) {
+                return false;
+            }            
+            ROS_INFO("inspection with box_cam2");
 
-    //    break;
+        break;
             
-    //    default:
-    //        ROS_WARN("camera number not recognized in BoxInspector2::update_inspection");
-    //        return false;
-                    
-    //}
+        default:
+            ROS_WARN("camera number not recognized in BoxInspector2::update_inspection");
+            return false;
+    }
 
     //OK--got an image; can clear out and rebuild all model vectors
     orphan_models_wrt_world.clear(); //this will be empty, unless something very odd happens

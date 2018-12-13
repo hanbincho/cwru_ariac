@@ -38,11 +38,28 @@ void orderCallback(const osrf_gear::Order::ConstPtr& msg) {
     ROS_INFO_STREAM(g_order);
 }
 
+void start_competition(ros::NodeHandle &node) {
+    ros::ServiceClient start_client = node.serviceClient<std_srvs::Trigger>("/ariac/start_competition");
+    ROS_INFO("Requesting competition to start...");
+    std_srvs::Trigger srv;
+    start_client.call(srv);
+    if(!srv.response.success) {
+    	ROS_WARN("Competition hasn't started yet...");
+    }
+    else {
+ 	ROS_INFO("Competition has been started");
+    }
+}
+
 int main(int argc, char** argv) {
     // ROS set-ups:
     ros::init(argc, argv, "box_unloader"); //node name
     ros::NodeHandle nh; // create a node handle; need to pass this to the class constructor
     int ans;
+
+    ROS_INFO("Going to run start_competition method...");
+    // Start competition automatically
+    start_competition(nh);
 
 
     ROS_INFO("instantiating a RobotBehaviorInterface");
@@ -104,6 +121,8 @@ int main(int argc, char** argv) {
             ROS_INFO("waiting for conveyor to advance a box to Q1...");
         }
     }
+
+    // include checking of box at Q1, automatically goes to Q2 instead
 
     //advance the box further!
     conveyorInterface.move_box_Q1_to_Q2(); //member function of conveyor interface to move a box to inspection station 1
@@ -250,7 +269,7 @@ int main(int argc, char** argv) {
 
     }
 
-    //
+    // following boxInspector is repeated
 
     boxInspector.update_inspection(desired_models_wrt_world,
             satisfied_models_wrt_world, misplaced_models_actual_coords_wrt_world,
@@ -258,6 +277,9 @@ int main(int argc, char** argv) {
             orphan_models_wrt_world, part_indices_missing, part_indices_misplaced,
             part_indices_precisely_placed, CAM2);
     nparts_misplaced = misplaced_models_actual_coords_wrt_world.size();
+
+    // this is where unload_box_v3 ends, must incorporate the following to unload_box_v3
+
     //populate missing parts  in box:
     int n_missing_parts = part_indices_missing.size();
     while (n_missing_parts > 0) {
